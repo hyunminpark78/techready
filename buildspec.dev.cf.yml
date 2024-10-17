@@ -1,0 +1,35 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - git config --global credential.helper store
+      - wget https://github.com/jqlang/jq/releases/download/jq-1.6/jq-linux64 -O jq
+      - chmod +x ./jq
+      - aws secretsmanager get-secret-value --secret-id $CBP_PROFILE/cbp-deploy/git > ./credentials.txt
+      - SECRETS=$(cat ./credentials.txt | ./jq '.SecretString' | sed 's,\\",",g')
+      - echo $SECRETS | sed 's:^.\(.*\).$:\1:' > ./secrets.txt
+
+      - USERNAME=$(cat ./secrets.txt | ./jq '.git_username' | sed 's:^.\(.*\).$:\1:')
+      - PASSWORD=$(cat ./secrets.txt | ./jq '.git_password' | sed 's:^.\(.*\).$:\1:')
+      - echo "https://$USERNAME:$PASSWORD@gitlab.tde.sktelecom.com" > ~/.git-credentials
+      - cat ~/.git-credentials
+      - npm install --unsafe-perm
+  pre_build:
+    commands:
+      - aws --version
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building App...
+      - npm i git+https://gitlab.tde.sktelecom.com/CLOUDMGM/cbp-app-base.git#dev
+      - npm run build
+  post_build:
+    commands:
+      - echo S3 deleting files...
+      - aws s3 rm s3://dev-portal.5gxcloudradar.com --recursive
+      - echo S3 Sync with dist folder...
+      - aws s3 sync ./dist s3://dev-portal.5gxcloudradar.com
+cache:
+  paths:
+    - 'node_modules/**/*'

@@ -1,0 +1,78 @@
+diff --git a/node_modules/vue2-daterange-picker/package.json b/node_modules/vue2-daterange-picker/package.json
+index c5cfd09..71b3c1a 100644
+--- a/node_modules/vue2-daterange-picker/package.json
++++ b/node_modules/vue2-daterange-picker/package.json
+@@ -74,9 +78,9 @@
+     "src"
+   ],
+   "homepage": "https://github.com/Innologica/vue2-daterange-picker#readme",
+-  "jsnext:main": "dist/vue2-daterange-picker.umd.min.js",
++  "jsnext:main": "src/index.js",
+   "license": "MIT",
+-  "main": "dist/vue2-daterange-picker.umd.min.js",
++  "main": "src/index.js",
+   "name": "vue2-daterange-picker",
+   "private": false,
+   "repository": {
+diff --git a/node_modules/vue2-daterange-picker/src/components/CalendarRanges.vue b/node_modules/vue2-daterange-picker/src/components/CalendarRanges.vue
+index b4019bd..cf05735 100644
+--- a/node_modules/vue2-daterange-picker/src/components/CalendarRanges.vue
++++ b/node_modules/vue2-daterange-picker/src/components/CalendarRanges.vue
+@@ -48,7 +48,7 @@
+         this.$emit('showCustomRange')
+       },
+       range_class (range) {
+-        return { active: range.selected === true };
++        return { active: range.selected === true && this.customRangeActive === false };
+       }
+     },
+     computed: {
+diff --git a/node_modules/vue2-daterange-picker/src/components/DateRangePicker.vue b/node_modules/vue2-daterange-picker/src/components/DateRangePicker.vue
+index 4454ca8..75ebbd3 100644
+--- a/node_modules/vue2-daterange-picker/src/components/DateRangePicker.vue
++++ b/node_modules/vue2-daterange-picker/src/components/DateRangePicker.vue
+@@ -156,6 +159,7 @@
+           @param {boolean} autoApply - value of the autoApply prop (whether to select immediately)
+         -->
+         <slot name="footer"
++              v-if="(autoApplyOnPredefinedRange && showCalendars) || !autoApplyOnPredefinedRange"
+               :rangeText="rangeText"
+               :locale="locale"
+               :clickCancel="clickCancel"
+@@ -292,6 +296,14 @@
+         type: Boolean,
+         default: false,
+       },
++      /**
++       * !!! CUSTOM !!!
++       * 미리 정의된 날짜 범위 선택 시 apply
++       */
++      autoApplyOnPredefinedRange: {
++        type: Boolean,
++        default: false,
++      },
+       /**
+        * Object containing locale data used by the picker. See example below the table
+        *
+@@ -666,7 +683,7 @@
+ 
+         this.onSelect();
+ 
+-        if (this.autoApply)
++        if (this.autoApply || this.autoApplyOnPredefinedRange)
+           this.clickedApply()
+       },
+       onUpdateStartTime (value) {
+diff --git a/node_modules/vue2-daterange-picker/src/components/date_util/native.js b/node_modules/vue2-daterange-picker/src/components/date_util/native.js
+index a147cad..f93afdc 100644
+--- a/node_modules/vue2-daterange-picker/src/components/date_util/native.js
++++ b/node_modules/vue2-daterange-picker/src/components/date_util/native.js
+@@ -59,7 +59,7 @@ const DateUtil = {
+       firstDay: 0
+     };
+ 
+-    return {...default_locale, ...options }
++    return Object.assign({}, default_locale, options);
+   },
+   yearMonth: (date) => {
+     let month = date.getMonth() + 1

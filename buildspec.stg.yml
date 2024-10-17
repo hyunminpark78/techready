@@ -1,0 +1,49 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - git config --global credential.helper store
+      - wget https://github.com/jqlang/jq/releases/download/jq-1.6/jq-linux64 -O jq
+      - chmod +x ./jq
+      - aws secretsmanager get-secret-value --secret-id $CBP_PROFILE/cbp-deploy/git > ./credentials.txt
+      - SECRETS=$(cat ./credentials.txt | ./jq '.SecretString' | sed 's,\\",",g')
+      - echo $SECRETS | sed 's:^.\(.*\).$:\1:' > ./secrets.txt
+
+      - USERNAME=$(cat ./secrets.txt | ./jq '.git_username' | sed 's:^.\(.*\).$:\1:')
+      - PASSWORD=$(cat ./secrets.txt | ./jq '.git_password' | sed 's:^.\(.*\).$:\1:')
+      - echo "https://$USERNAME:$PASSWORD@gitlab.tde.sktelecom.com" > ~/.git-credentials
+      - cat ~/.git-credentials
+      - npm install --unsafe-perm
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $CBP_ACCOUNT_ID.dkr.ecr.ap-northeast-2.amazonaws.com
+      - REPOSITORY_URI=$CBP_ACCOUNT_ID.dkr.ecr.ap-northeast-2.amazonaws.com/cbp/appocp
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=1.0.0
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building App...
+      - npm i git+https://gitlab.tde.sktelecom.com/CLOUDMGM/cbp-app-base.git#dev
+      - npm run build.$CBP_PROFILE
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build --build-arg SPRING_ACTIVE_PROFILE=$CBP_PROFILE --build-arg CBP_ACCOUNT_ID=$CBP_ACCOUNT_ID -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Writing image definitions file...
+      - printf '[{"name":"cbp-appocp","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+artifacts:
+  files:
+    - imagedefinitions.json
+cache:
+  paths:
+    - 'node_modules/**/*'

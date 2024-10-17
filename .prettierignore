@@ -1,0 +1,4 @@
+# src 하위 폴더만 prettier 적용
+/*
+!/src
+**/*.css
